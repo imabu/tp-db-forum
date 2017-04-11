@@ -5,6 +5,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import park.mappers.*;
 import park.serverModel.*;
 
@@ -52,19 +53,19 @@ public class ThreadService {
         return details(id.toString());
     }
 
-    public ThreadInfo update(String slug_or_id, ThreadInfo threadUpdate){
+    public ThreadInfo update(String slug_or_id, ThreadInfo threadUpdate) {
         ThreadInfo thread = details(slug_or_id);
         StringBuilder sql = new StringBuilder("update threads set ");
         final String title = threadUpdate.getTitle();
         final String message = threadUpdate.getMessage();
-        List<Object> arg=new ArrayList<>();
-        if(title!=null){
+        List<Object> arg = new ArrayList<>();
+        if (title != null) {
             sql.append(" title=?,");
             arg.add(title);
             thread.setTitle(title);
         }
-        if(message!=null){
-            sql.append( " message=?,");
+        if (message != null) {
+            sql.append(" message=?,");
             arg.add(message);
             thread.setMessage(message);
         }
@@ -86,8 +87,9 @@ public class ThreadService {
         }
     }
 
+    @Transactional
     public List<PostInfo> createPosts(List<PostInfo> posts, String slug_or_id) {
-        int k=0;
+        int k = 0;
         final ThreadInfo thread = details(slug_or_id);
         final String time = LocalDateTime.now().toString();
         final Timestamp created = Timestamp.valueOf(LocalDateTime.parse(time, DateTimeFormatter.ISO_DATE_TIME));
@@ -143,7 +145,7 @@ public class ThreadService {
                     new Object[]{threadId, nickname}, new VoteMapper());
             final int chVote = -voteUser.getVoice() + vote.getVoice();
             template.update("update uservotes set voice=? where lower(nickname)=lower(?) and thread=? ",
-                    new Object[]{vote.getVoice(),nickname, threadId});
+                    new Object[]{vote.getVoice(), nickname, threadId});
             template.update("update threads set votes=votes+? where id=?",
                     new Object[]{chVote, threadId});
             thread.setVotes(thread.getVotes() + chVote);
@@ -155,27 +157,111 @@ public class ThreadService {
         return thread;
     }
 
-    public List<PostInfo> getPosts(String slug_or_id, Integer limit, String marker, String sort, boolean desc){
+    public List<PostInfo> getPosts(String slug_or_id, Integer limit, String marker, String sort, boolean desc) {
         final ThreadInfo thread = details(slug_or_id);
-        if(sort.equals("flat")){
+        if (sort.equals("flat")) {
             StringBuilder sql = new StringBuilder("select * from posts where thread=? ");
-            if(marker!=null){
-                sql.append(" and id> ").append(marker);
+            if (marker != null) {
+                if (desc) sql.append(" and id < ").append(marker);
+                else sql.append(" and id > ").append(marker);
             }
-            sql.append(" order by created ");
-            if (desc){
+            sql.append(" order by created  ");
+            if (desc) {
                 sql.append(" desc ");
             }
-            sql.append(", id asc ");
-            if(limit!=null){
+            sql.append(", id ");
+            if (desc) {
+                sql.append(" desc ");
+            }
+            if (limit != null) {
                 sql.append(" limit ").append(limit);
             }
-            return template.query(sql.toString(), new PostMapper(),new Object[]{thread.getId()});
-        }
-        else if(sort.equals("tree")){
+            return template.query(sql.toString(), new PostMapper(), new Object[]{thread.getId()});
+        } else if (sort.equals("tree")) {
+            StringBuilder sql = new StringBuilder("WITH RECURSIVE parent_limit(id, parent, author, message, thread, forum, created, isedited, path) as( " +
+                    "    SELECT " +
+                    "      id, parent, author, message, thread, forum, created, isedited, array[id] as path " +
+                    "    FROM posts " +
+                    "    WHERE parent = 0 AND thread = ? ");
 
 
+            sql.append("), " +
+                    "    recursetree(" +
+                    "    id, parent, author, message, thread, forum, created, isedited, path) AS ( " +
+                    "  SELECT    * " +
+                    "  FROM parent_limit  " +
+                    "  UNION " +
+                    "  SELECT " +
+                    "    p.id, p.parent, p.author, p.message, p.thread, p.forum, " +
+                    "    p.created, p.isedited, rt.path||p.id as path " +
+                    "  FROM recursetree rt " +
+                    "    JOIN posts p ON rt.id = p.parent  " +
+                    "  WHERE rt.thread = ? " +
+                    ")" +
+                    "SELECT * " +
+                    "FROM recursetree ");
+            if (marker != null) {
+                if (desc) {
+                    sql.append("where path < \'").append(marker).append("\'");
+                } else {
+                    sql.append("where path > \'").append(marker).append("\'");
+                }
+            }
+            sql.append("  order by path ");
+            if (desc) {
+                sql.append(" desc ");
+            }
+            if (limit != null) {
+                sql.append("    limit ").append(limit);
+            }
+            return template.query(sql.toString(), new PostMapper(), new Object[]{thread.getId(), thread.getId()});
+
+        } else if (sort.equals("parent_tree")) {
+
+            StringBuilder sql = new StringBuilder("WITH RECURSIVE parent_limit(id, parent, author, message, thread, forum, created, isedited, path) as( " +
+                    "    SELECT " +
+                    "      id, parent, author, message, thread, forum, created, isedited, array[id] as path " +
+                    "    FROM posts " +
+                    "    WHERE parent = 0 AND thread = ? ");
+            if (marker != null) {
+                if (desc) {
+                    sql.append(" and  id < ").append(marker);
+                } else {
+                    sql.append(" and id > ").append(marker);
+                }
+            }
+            if (desc) {
+                sql.append(" order by created desc, id desc ");
+            } else {
+                sql.append(" order by created , id ");
+            }
+            if (limit != null) {
+                sql.append("    limit ").append(limit);
+            }
+
+            sql.append("), " +
+                    "    recursetree(" +
+                    "    id, parent, author, message, thread, forum, created, isedited, path) AS ( " +
+                    "  SELECT    * " +
+                    "  FROM parent_limit  " +
+                    "  UNION " +
+                    "  SELECT " +
+                    "    p.id, p.parent, p.author, p.message, p.thread, p.forum, " +
+                    "    p.created, p.isedited, rt.path||p.id as path " +
+                    "  FROM recursetree rt " +
+                    "    JOIN posts p ON rt.id = p.parent  " +
+                    "  WHERE rt.thread = ? " +
+                    ")" +
+                    "SELECT * , path[1] as pp " +
+                    " FROM recursetree ");
+
+
+            sql.append(" order by path ");
+            if (desc) sql.append(" desc ");
+
+            return template.query(sql.toString(), new PostSortMapper(), new Object[]{thread.getId(), thread.getId()});
         }
+
         return null;
     }
 }

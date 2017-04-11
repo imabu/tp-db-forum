@@ -1,15 +1,17 @@
 package park.mappers;
 
-
 import org.springframework.jdbc.core.RowMapper;
 import park.serverModel.PostInfo;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class PostMapper implements RowMapper<PostInfo> {
+/**
+ * Created by HP on 23.03.2017.
+ */
+public class PostSortMapper implements RowMapper<PostInfo> {
     @Override
-    public PostInfo mapRow(ResultSet rs, int rowNum) throws SQLException{
+    public PostInfo mapRow(ResultSet rs, int rowNum) throws SQLException {
         final PostInfo post=new PostInfo();
         post.setId(rs.getInt("id"));
         post.setForum(rs.getString("forum"));
@@ -20,6 +22,7 @@ public class PostMapper implements RowMapper<PostInfo> {
         post.setCreated(rs.getTimestamp("created"));
         post.setIsEdited(rs.getBoolean("isEdited"));
         post.setPath(rs.getString("path"));
+        post.setPp(rs.getInt("pp"));
         return post;
     }
 }

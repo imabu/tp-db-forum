@@ -14,6 +14,8 @@ public class PostInfo {
     private boolean isEdited;
     private String forum;
     private int thread;
+    private String path;
+    private int pp;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSSX")
     private Timestamp created;
 
@@ -96,5 +98,21 @@ public class PostInfo {
 
     public boolean getIsEdited() {
         return isEdited;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
+    public Integer getPp() {
+        return pp;
+    }
+
+    public void setPp(int pp) {
+        this.pp = pp;
     }
 }

@@ -83,18 +83,25 @@ public class ThreadController {
     static String postMarker;
 
     @GetMapping(path = "/thread/{slug_or_id}/posts")
-    public ResponseEntity<?> getPosts(@PathVariable(value = "slug_or_id") String slug_or_id,
+    public ResponseEntity<PostPage> getPosts(@PathVariable(value = "slug_or_id") String slug_or_id,
                                       @RequestParam(value = "limit", required = false) Integer limit,
                                       @RequestParam(value = "marker", required = false) String marker,
-                                      @RequestParam(value = "sort", required = false) String sort,
+                                      @RequestParam(value = "sort", required = false, defaultValue = "flat") String sort,
                                       @RequestParam(value = "desc", required = false) boolean desc) {
-        final List<PostInfo> posts = threadService.getPosts(slug_or_id, limit, marker, sort, desc);
-        if (posts.size() != 0) {
-            final PostInfo lastPost = posts.get(posts.size() - 1);
-            postMarker = lastPost.getId().toString();
-        }
-        return ResponseEntity.status(HttpStatus.OK).body(new PostPage(posts, postMarker));
 
+        try {
+            final List<PostInfo> posts = threadService.getPosts(slug_or_id, limit, marker, sort, desc);
+            if (posts.size() != 0) {
+                final PostInfo lastPost = posts.get(posts.size() - 1);
+                if (sort.equals("flat")) postMarker = lastPost.getId().toString();
+                else if (sort.equals("tree")) postMarker = lastPost.getPath();
+                else if (sort.equals("parent_tree")) postMarker = lastPost.getPp().toString();
+
+            }
+            return ResponseEntity.status(HttpStatus.OK).body(new PostPage(posts, postMarker));
+        } catch (DataAccessException ex) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
     }
 
 }

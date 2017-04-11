@@ -47,10 +47,10 @@ RUN apt-get install -y maven
 
 # Копируем исходный код в Docker-контейнер
 ENV WORK /opt/tp-db-forum
-ADD  $WORK
+ADD  . $WORK/api
 
 # Собираем и устанавливаем пакет
-WORKDIR $WORK
+WORKDIR $WORK/api
 RUN mvn package
 
 # Объявлем порт сервера
@@ -59,4 +59,4 @@ EXPOSE 5000
 #
 # Запускаем PostgreSQL и сервер
 #
-CMD service postgresql start && java -Xmx300M -Xmx300M -jar $WORK/target/forum-1.0-SNAPSHOT.jar
+CMD service postgresql start && java -Xmx300M -Xmx300M -jar $WORK/api/target/forum-1.0-SNAPSHOT.jar
